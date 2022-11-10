@@ -2,8 +2,6 @@
 
 This Program provides a simple terminal based chat server.
 
-Simply run the Server.class file to host a server!
+Simply run the Server.class file with a port as an argument to host a server!
 
-To connect as a client, you will need to edit the source file to input the IP address of the server, recompile, and then simply run Client.class!
-
-By default the client will connect to localhost.
+To connect as a client, you will need to simply run Client.class with the server's ip address and port as arguments!
