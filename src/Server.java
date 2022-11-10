@@ -8,27 +8,17 @@ import java.net.Socket;
 import java.util.Scanner;
 
 public class Server {
-  HashMap<Integer, ClientHandler> sockets = new HashMap<Integer, ClientHandler>();
+  public static volatile HashMap<Integer, ClientHandler> sockets = new HashMap<Integer, ClientHandler>();
 
   public static void main(String[] args) {
-    new Server().startup();
-  }
-
-  public void broadcast(String msg) {
-    System.out.println(msg);
-    for (ClientHandler c : sockets.values()) {
-      c.send(msg, "SERVER");
-    }
-  }
-
-  private void startup() {
+    if (args.length < 1) return;
     ServerSocket sock;
     System.out.println("Creating new Server!");
     try {
       int id = 0;
-      sock = new ServerSocket(2556);
+      sock = new ServerSocket(Integer.parseInt(args[0]));
       while (true) {
-        ClientHandler newClient = new ClientHandler(sock.accept(), sockets, id, this);
+        ClientHandler newClient = new ClientHandler(sock.accept(), id);
         sockets.put(id, newClient);
         newClient.start();
         id++;
@@ -41,54 +31,62 @@ public class Server {
     scanner.nextLine();
     scanner.close();
   }
+
+  public static void broadcast(String msg) {
+    System.out.println(msg);
+    for (ClientHandler c : sockets.values()) {
+      c.send(msg, "SERVER", -1);
+    }
+  }
+    
 }
 
 class ClientHandler extends Thread {
-  final Server s;
-  HashMap<Integer, ClientHandler> sockets;
-  Socket clientSock;
-  PrintWriter out;
-  String uid;
-  final int id;
+  private final Socket clientSock;
+  private final PrintWriter out;
+  private final int id;
+  private String uid;
 
-  public ClientHandler(Socket clientSock, HashMap<Integer, ClientHandler> sockets, int id, Server s) {
-    this.s = s;
+  public ClientHandler(Socket clientSock, int id) {
     this.clientSock = clientSock;
-    this.sockets = sockets;
     this.id = id;
+    PrintWriter a = null;
+    try {
+      a = new PrintWriter(clientSock.getOutputStream(), true);
+    } catch(IOException e) {System.out.println(e);}
+    out = a;
   }
 
-  public void send(String msg, String user) {
-    if (user.equals(uid)) return;
+  public void send(String msg, String user, int id) {
+    if (this.id == id) return;
     out.println(user + "> " + msg);
   }
 
   public void run() {
     try {
       System.out.println("Client Connected");
-      out = new PrintWriter(clientSock.getOutputStream(), true);
       out.println("Welcome, new user!");
       out.println(getQuote());
+      out.print("Username: ");
+      out.flush();
       BufferedReader in = new BufferedReader(new InputStreamReader(clientSock.getInputStream()));
 
       uid = in.readLine();
 
-      s.broadcast("Welcome, " + uid);
+      Server.broadcast("Welcome, " + uid);
       while (true) {
         String msg = in.readLine();
         if (msg.equals("exit")) break;
         System.out.println(uid + "> " + msg);
-        for (ClientHandler c : sockets.values()) {
-          c.send(msg, uid);
+        for (ClientHandler c : Server.sockets.values()) {
+          c.send(msg, uid, id);
         }
       }
-      in.close();
-      out.close();
       clientSock.close();
-      s.broadcast("User " + uid + " disconnected");
-      sockets.remove(id);
-    } catch(IOException e){s.broadcast("User " + uid + " disconnected poorly: " + e); sockets.remove(id);}
-    System.out.println("number of active users: " + sockets.size());
+      Server.broadcast("User " + uid + " disconnected");
+      Server.sockets.remove(id);
+    } catch(IOException e){Server.broadcast("User " + uid + " disconnected poorly: " + e); Server.sockets.remove(id);}
+    System.out.println("number of active users: " + Server.sockets.size());
   }
 
   private static String getQuote() {
